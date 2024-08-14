@@ -12,13 +12,12 @@
       <PackageReference Include="IdentityModel" Version="7.0.0" />
       <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.7" />
       <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0-preview.6.24327.7" />
-      <PackageReference Include="Microsoft.Garnet" Version="1.0.18" />
       <PackageReference Include="Npgsql" Version="8.0.3" />
+      <PackageReference Include="StackExchange.Redis" Version="2.8.0" />
       <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.1" />
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Services\" />
       <Folder Include="Validators\" />
     </ItemGroup>
 

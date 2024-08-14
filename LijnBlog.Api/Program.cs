@@ -1,12 +1,10 @@
-using System.ComponentModel;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Cryptography;
 using IdentityModel;
 using LijnBlog.Application;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Cryptography;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,29 +12,26 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Configuration.AddJsonFile("DbConnection.json", optional: true, reloadOnChange: true);
 
 var config = builder.Configuration;
-
-string dbSchema = builder.Environment.EnvironmentName switch
-{
-    "Development" => "Database:dev",
-    "Production" => "Database:pro",
-    _ => throw new InvalidEnumArgumentException($"Project environment {builder.Environment.EnvironmentName} is invalid for deciding database schema")
-};
 
 /*
  * service add database
  */
-builder.Services.AddDatabase($"User ID={config[dbSchema + "User ID"]};" +
-                             $"Password={config[dbSchema + "Password"]};" +
-                             $"Host={config[dbSchema + "Host"]};" +
-                             $"Port={config[dbSchema + "Port"]};" +
-                             $"Database={config[dbSchema + "Database"]};" +
-                             $"Pooling={config[dbSchema + "Pooling"]};" +
-                             $"Min Pool Size={config[dbSchema + "Min Pool Size"]};" +
-                             $"Max Pool Size={config[dbSchema + "Max Pool Size"]};" +
-                             $"Connection Lifetime={config[dbSchema + "Connection Lifetime"]};");
+builder.Services.AddDatabase($"User ID={config["Database:User ID"]};" +
+                             $"Password={config["Database:Password"]};" +
+                             $"Host={config["Database:Host"]};" +
+                             $"Port={config["Database:Port"]};" +
+                             $"Database={config["Database:Database"]};" +
+                             $"Pooling={config["Database:Pooling"]};" +
+                             $"Min Pool Size={config["Database:Min Pool Size"]};" +
+                             $"Max Pool Size={config["Database:Max Pool Size"]};" +
+                             $"Connection Lifetime={config["Database:Connection Lifetime"]};");
+/*
+ * service add cache
+ */
+builder.Services.AddCache(config["Cache:Host"]!, int.Parse(config["Cache:Port"]!), config["Cache:User"],
+    config["Cache:Password"]!, int.Parse(config["Cache:Database"]!));
 
 /*
  * service add jwt
@@ -44,16 +39,16 @@ builder.Services.AddDatabase($"User ID={config[dbSchema + "User ID"]};" +
 builder.Services.AddAuthentication(o =>
 {
     o.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    o.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    o.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 }).AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, o =>
 {
-    var rsaValidateSigningKey = new RsaSecurityKey(JsonConvert.DeserializeObject<RSAParameters>(
-        config["Jwt:PublicKey"]!));
+    var rsaPublicKey = new RsaSecurityKey(JsonConvert.DeserializeObject<RSAParameters>(config["Jwt:PublicKey"]!));
     o.TokenValidationParameters = new TokenValidationParameters()
     {
-        ValidTypes = new[] {JwtConstants.HeaderType},
-        
-        IssuerSigningKey = rsaValidateSigningKey,
+        ValidTypes = [JwtConstants.HeaderType],
+        ValidAlgorithms = [SecurityAlgorithms.RsaSha256Signature],
+
+        IssuerSigningKey = rsaPublicKey,
         ValidateIssuerSigningKey = true,
 
         ValidIssuer = config["Jwt:Issuer"]!,
@@ -61,14 +56,14 @@ builder.Services.AddAuthentication(o =>
 
         ValidAudience = config["Jwt:Audience"],
         ValidateAudience = true,
-        
+
         ValidateLifetime = true,
         RequireSignedTokens = true,
         RequireExpirationTime = true,
 
         NameClaimType = JwtClaimTypes.Name,
         RoleClaimType = JwtClaimTypes.Role,
-        
+
         ClockSkew = TimeSpan.FromSeconds(int.Parse(config["Jwt:Audience"]!))
     };
 
@@ -76,9 +71,21 @@ builder.Services.AddAuthentication(o =>
     o.TokenHandlers.Clear();
     o.TokenHandlers.Add(new JwtSecurityTokenHandler());
 
-    //o.EventsType = typeof();
+    o.Events = new JwtBearerEvents
+    {
+        OnChallenge = context =>
+        {
+            if (context.AuthenticateFailure is SecurityTokenExpiredException)
+            {
+                context.HandleResponse();
+                context.Response.StatusCode = 401;
+                context.Response.ContentType = "application/json";
+                var content = JsonConvert.SerializeObject(new { msg = "Access token is expired" });
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
-
 
 var app = builder.Build();
 
@@ -90,6 +97,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
 app.UseAuthentication();
+app.UseAuthorization();
 
 app.Run();

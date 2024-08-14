@@ -1,14 +1,14 @@
-using System.Data;
 using Npgsql;
+using System.Data;
 
 namespace LijnBlog.Application.Database;
 
 public class NpgsqlConnectionFactory(string connectionString) : IDbConnectionFactory
 {
-    public async Task<IDbConnection> CreateConnectionAsync(CancellationToken token = default)
+    public async Task<IDbConnection> CreateConnectionAsync()
     {
         var connection = new NpgsqlConnection(connectionString);
-        await connection.OpenAsync(token);
+        await connection.OpenAsync();
         return connection;
     }
 }

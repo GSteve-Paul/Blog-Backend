@@ -1,6 +1,6 @@
 namespace LijnBlog.Application.Models;
 
-public partial class Blog 
+public partial class Blog
 {
     public Guid BlogId { get; set; }
 
@@ -21,6 +21,6 @@ public partial class Blog
     public List<Category> Categories { get; set; } = new();
 
     public DateTime CreateTime { get; set; }
-    
+
     public DateTime UpdateTime { get; set; }
 }
