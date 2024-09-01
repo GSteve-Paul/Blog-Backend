@@ -1,19 +1,23 @@
 using IdentityModel;
+using LijnBlog.Api.Contracts.Responses;
 using LijnBlog.Application;
+using LijnBlog.Application.Constants;
+using LijnBlog.Application.Models.Enums;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using Newtonsoft.Json;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Cryptography;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
+var config = builder.Configuration;
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var config = builder.Configuration;
+builder.Services.AddControllers();
 
 /*
  * service add database
@@ -30,7 +34,7 @@ builder.Services.AddDatabase($"User ID={config["Database:User ID"]};" +
 /*
  * service add cache
  */
-builder.Services.AddCache(config["Cache:Host"]!, int.Parse(config["Cache:Port"]!), config["Cache:User"],
+builder.Services.AddCache(config["Cache:Host"]!, int.Parse(config["Cache:Port"]!), config["Cache:User"]!,
     config["Cache:Password"]!, int.Parse(config["Cache:Database"]!));
 
 /*
@@ -42,7 +46,7 @@ builder.Services.AddAuthentication(o =>
     o.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 }).AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, o =>
 {
-    var rsaPublicKey = new RsaSecurityKey(JsonConvert.DeserializeObject<RSAParameters>(config["Jwt:PublicKey"]!));
+    var rsaPublicKey = new RsaSecurityKey(JsonSerializer.Deserialize<RSAParameters>(config["Jwt:PublicKey"]!));
     o.TokenValidationParameters = new TokenValidationParameters()
     {
         ValidTypes = [JwtConstants.HeaderType],
@@ -79,12 +83,39 @@ builder.Services.AddAuthentication(o =>
             {
                 context.HandleResponse();
                 context.Response.StatusCode = 401;
-                context.Response.ContentType = "application/json";
-                var content = JsonConvert.SerializeObject(new { msg = "Access token is expired" });
             }
             return Task.CompletedTask;
         }
     };
+});
+
+builder.Services.AddAuthorization(o =>
+{
+    o.AddPolicy(AuthorizationConstant.Policy.AdminPolicy, p =>
+    {
+        p.RequireClaim(JwtClaimTypes.Role, ((int)RoleEnum.Admin).ToString());
+        p.RequireClaim(AuthenticateConstant.JwtClaimTypes.BannedClaimType, false.ToString());
+        p.RequireAssertion(context =>
+            context.User.HasClaim(claim =>
+                claim.Type == AuthenticateConstant.JwtClaimTypes.RefreshTokenIdClaimType));
+    });
+
+    o.AddPolicy(AuthorizationConstant.Policy.UserPolicy, p =>
+    {
+        p.RequireClaim(JwtClaimTypes.Role, ((int)RoleEnum.User).ToString());
+        p.RequireClaim(AuthenticateConstant.JwtClaimTypes.BannedClaimType, false.ToString());
+        p.RequireAssertion(context =>
+            context.User.HasClaim(claim =>
+                claim.Type == AuthenticateConstant.JwtClaimTypes.RefreshTokenIdClaimType));
+    });
+
+    o.AddPolicy(AuthorizationConstant.Policy.RefreshPolicy, p =>
+    {
+        p.RequireAssertion(context => 
+            !context.User.HasClaim(claim => claim.Type == AuthenticateConstant.JwtClaimTypes.RefreshTokenIdClaimType)            
+        );
+    });
+
 });
 
 var app = builder.Build();
@@ -100,5 +131,9 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseCors();
+
+app.MapControllers();
 
 app.Run();

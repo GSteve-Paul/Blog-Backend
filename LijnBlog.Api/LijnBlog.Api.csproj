@@ -15,4 +15,8 @@
     <ProjectReference Include="..\LijnBlog.Application\LijnBlog.Application.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Contracts\Requests\" />
+  </ItemGroup>
+
 </Project>

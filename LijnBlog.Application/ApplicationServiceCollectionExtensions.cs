@@ -1,5 +1,6 @@
 using LijnBlog.Application.Cache;
 using LijnBlog.Application.Database;
+using LijnBlog.Application.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LijnBlog.Application;
@@ -22,6 +23,7 @@ public static class ApplicationServiceCollectionExtensions
 
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
+        services.AddSingleton<IAuthenticateService, AuthenticateService>();
         return services;
     }
 }

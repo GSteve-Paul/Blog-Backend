@@ -12,7 +12,7 @@ public class Client
 
     public int Role { get; set; }
 
-    public DateTime banned { get; set; }
+    public DateTime Banned { get; set; }
 
     public DateTime CreateTime { get; set; }
 
